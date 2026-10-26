@@ -1,28 +1,38 @@
 /**
  * نقطه‌ی ورود بازی «جنگاوران قلعه»
- * موج ۱: نمایش شالوده و بررسی سالم‌بودن محیط اجرا.
- * در موج‌های بعدی، موتور بازی و صفحه‌ها اینجا سوار می‌شوند.
+ * موج ۲: پوسته‌ی راست‌چین فارسی، ناوبری و روتر hash.
  */
+import { renderShell, SCREEN_IDS } from './ui/shell.js';
+import { renderPlaceholder } from './ui/screens/placeholder.js';
+import { createRouter } from './ui/router.js';
+
 const app = document.querySelector('#app');
 
-const WAVE = 1;
-const TITLE = 'جنگاوران قلعه';
-const TAGLINE = 'بازی استراتژی و آبادانی روستا، با حال‌وهوای ایرانی';
+/** @type {Record<string, () => string>} */
+const views = {
+  village: () => renderPlaceholder('village'),
+  army: () => renderPlaceholder('army'),
+  battle: () => renderPlaceholder('battle'),
+  more: () => renderPlaceholder('more'),
+};
 
-function renderSplash() {
-  if (!app) return;
-  app.innerHTML = `
-    <section class="splash">
-      <div class="splash__badge" aria-hidden="true">🏰</div>
-      <h1>${TITLE}</h1>
-      <p>${TAGLINE}</p>
-      <p class="splash__meta">شالوده‌ی پروژه آماده است — موج ۱ از ۵۰</p>
-      <p>به‌زودی روستایت را می‌سازی، سپاهت را آموزش می‌دهی و به دشمنان می‌تازی.</p>
-    </section>
-  `;
-  document.title = `${TITLE} | بازی استراتژی ایرانی`;
+function paint(route) {
+  app.innerHTML = renderShell({ active: route.name });
+  const screen = app.querySelector('#screen');
+  screen.innerHTML = views[route.name]();
+  screen.focus({ preventScroll: true });
+  const label = route.name;
+  document.body.dataset.screen = label;
 }
 
-renderSplash();
+function boot() {
+  if (!app) return;
+  document.documentElement.lang = 'fa';
+  document.documentElement.dir = 'rtl';
+  document.title = 'جنگاوران قلعه | بازی استراتژی ایرانی';
+  createRouter({ known: SCREEN_IDS, onChange: paint });
+}
 
-export { WAVE, renderSplash };
+boot();
+
+export { views };
