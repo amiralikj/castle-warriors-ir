@@ -47,6 +47,7 @@ export function createGameState(now = Date.now()) {
     resources: createResources(),
     village: createVillage(),
     army: createArmy(),
+    battle: { seed: 7, history: [] },
     stats: {
       battlesWon: 0,
       battlesLost: 0,
@@ -171,6 +172,34 @@ export function sanitizeArmy(raw) {
   return army;
 }
 
+/** تاریخچه‌ی نبرد و بذر حریفان را پاک‌سازی می‌کند. */
+export function sanitizeBattle(raw) {
+  const battle = { seed: 7, history: [] };
+  if (!isObject(raw)) return battle;
+  battle.seed = Math.max(1, Math.round(finite(raw.seed, 7)));
+  const history = Array.isArray(raw.history) ? raw.history : [];
+  for (const entry of history) {
+    if (!isObject(entry)) continue;
+    const stars = Math.max(0, Math.min(3, Math.round(finite(entry.stars, 0))));
+    battle.history.push({
+      id: typeof entry.id === 'string' ? entry.id : `battle-${battle.history.length}`,
+      at: Math.round(finite(entry.at, Date.now())),
+      name: typeof entry.name === 'string' ? entry.name.slice(0, 60) : 'دشمن ناشناس',
+      level: Math.max(1, Math.min(10, Math.round(finite(entry.level, 1)))),
+      stars,
+      win: stars > 0,
+      sent: Math.max(0, Math.round(finite(entry.sent, 0))),
+      losses: Math.max(0, Math.round(finite(entry.losses, 0))),
+      loot: {
+        gold: Math.max(0, Math.round(finite(entry.loot?.gold, 0))),
+        wheat: Math.max(0, Math.round(finite(entry.loot?.wheat, 0))),
+      },
+    });
+    if (battle.history.length >= 20) break;
+  }
+  return battle;
+}
+
 /** وضعیت خام را به نسخه‌ی فعلی مهاجرت و پاک‌سازی می‌کند. */
 export function migrate(raw) {
   if (!isObject(raw)) return null;
@@ -194,6 +223,7 @@ export function migrate(raw) {
     },
     village,
     army: sanitizeArmy(raw.army),
+    battle: sanitizeBattle(raw.battle),
     stats: {
       ...base.stats,
       ...Object.fromEntries(

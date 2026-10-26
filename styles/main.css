@@ -1032,3 +1032,193 @@ button {
 .empty-state .btn {
   margin-top: 6px;
 }
+
+/* ==========================================================================
+   نبرد — حریفان، نتیجه و تاریخچه
+   ========================================================================== */
+
+.battle {
+  display: grid;
+  gap: 12px;
+}
+
+.battle__head {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: space-between;
+}
+
+.battle__head h2 {
+  font-size: 1.35rem;
+}
+
+.battle-army {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.opponents {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+}
+
+.opponent {
+  background: linear-gradient(170deg, var(--panel), var(--bg-soft));
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  display: grid;
+  gap: 10px;
+  padding: 12px 14px;
+}
+
+.opponent__head {
+  align-items: flex-start;
+  display: flex;
+  gap: 8px;
+}
+
+.opponent__emoji {
+  font-size: 24px;
+}
+
+.opponent__head > div {
+  flex: 1;
+}
+
+.opponent__head h3 {
+  font-size: 0.98rem;
+}
+
+.opponent__loot {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  font-size: 0.78rem;
+  gap: 6px;
+}
+
+.opponent .btn {
+  width: 100%;
+}
+
+.battle-result {
+  background: linear-gradient(170deg, var(--panel-2), var(--bg-soft));
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow);
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+}
+
+.battle-result.is-win {
+  border-color: rgba(95, 201, 138, 0.55);
+}
+
+.battle-result.is-loss {
+  border-color: rgba(232, 104, 92, 0.55);
+}
+
+.battle-result__head {
+  align-items: center;
+  display: flex;
+  gap: 10px;
+  justify-content: space-between;
+}
+
+.battle-result__head h3 {
+  color: var(--gold);
+  font-size: 1.2rem;
+}
+
+.battle-result__grid {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+}
+
+.result-stat {
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: var(--radius-sm);
+  display: grid;
+  font-size: 0.78rem;
+  gap: 2px;
+  justify-items: center;
+  padding: 8px;
+}
+
+.result-stat span {
+  color: var(--muted);
+  font-size: 0.72rem;
+}
+
+.result-stat strong {
+  color: var(--gold);
+  font-size: 1rem;
+}
+
+.stars {
+  display: inline-flex;
+  gap: 2px;
+}
+
+.star {
+  color: rgba(255, 255, 255, 0.18);
+  font-size: 1.1rem;
+}
+
+.star.is-on {
+  color: var(--gold);
+  text-shadow: 0 0 10px rgba(232, 180, 74, 0.55);
+}
+
+.battle-log {
+  color: var(--muted);
+  display: grid;
+  font-size: 0.8rem;
+  gap: 4px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.battle-log li::before {
+  color: var(--gold);
+  content: '• ';
+}
+
+.battle-history {
+  display: grid;
+  gap: 8px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.history-item {
+  align-items: center;
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: var(--radius-sm);
+  display: flex;
+  flex-wrap: wrap;
+  font-size: 0.78rem;
+  gap: 8px;
+  justify-content: space-between;
+  padding: 8px 10px;
+}
+
+.history-item__name {
+  flex: 1;
+  font-weight: 600;
+  min-width: 8ch;
+}
+
+.history-item__loot {
+  display: inline-flex;
+  gap: 4px;
+}

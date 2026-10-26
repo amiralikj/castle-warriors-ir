@@ -6,6 +6,8 @@ import { costFor, getBuilding, constructionSeconds, isUnlocked } from '../data/b
 import { canAfford, pay } from './economy.js';
 import { addBuilding, canPlace, findByUid, castleLevel, startUpgrade } from './village.js';
 import { createArmy, enqueueTraining } from './army.js';
+import { simulateBattle, createOpponents } from './battle.js';
+import { grant, storageCaps } from './economy.js';
 import { troopCost, trainingSeconds } from '../data/troops.js';
 
 /** پیام خطای یکدست برای کمبود منابع. */
@@ -120,5 +122,83 @@ export function trainUnits(state, { type, count = 1, now = Date.now() }) {
       army: queued.army,
       resources: pay(state.resources, cost),
     },
+  };
+}
+
+/**
+ * حمله به دهکده‌ی دشمن: شبیه‌سازی نبرد، جایگزینی بازماندگان، دریافت غنیمت
+ * و ثبت در تاریخچه.
+ */
+export function attackEnemy(state, { enemy, units, now = Date.now(), seed } = {}) {
+  if (!enemy || !Array.isArray(enemy.buildings)) {
+    return { ok: false, code: 'NO_ENEMY', message: 'حریف معتبر نیست.' };
+  }
+  const available = state.army?.units || {};
+  const sent = {};
+  for (const [type, count] of Object.entries(units ?? available)) {
+    const n = Math.floor(Number(count) || 0);
+    if (n <= 0) continue;
+    if ((available[type] || 0) < n) {
+      return { ok: false, code: 'NOT_ENOUGH', message: 'سرباز کافی از این نوع نداری.' };
+    }
+    sent[type] = n;
+  }
+  const sentTotal = Object.values(sent).reduce((sum, n) => sum + n, 0);
+  if (sentTotal === 0) {
+    return { ok: false, code: 'NO_UNITS', message: 'سپاهی برای حمله نداری؛ اول سرباز آموزش بده.' };
+  }
+
+  const result = simulateBattle({ units: sent, enemy, seed: seed ?? state.battle?.seed ?? 7 });
+
+  const caps = storageCaps(state.village.buildings);
+  const resources = grant(state.resources, result.loot, caps);
+
+  const remainingUnits = { ...available };
+  for (const [type, count] of Object.entries(sent)) {
+    remainingUnits[type] = (remainingUnits[type] || 0) - count + (result.survivors[type] || 0);
+    if (remainingUnits[type] <= 0) delete remainingUnits[type];
+  }
+
+  const entry = {
+    id: `battle-${now}-${Math.round(result.destruction * 100)}`,
+    at: now,
+    name: enemy.name,
+    level: enemy.level,
+    stars: result.stars,
+    win: result.stars > 0,
+    sent: sentTotal,
+    losses: result.attackerLosses,
+    loot: result.loot,
+  };
+
+  const history = [entry, ...(state.battle?.history || [])].slice(0, 20);
+  const stats = {
+    ...state.stats,
+    battlesWon: (state.stats?.battlesWon || 0) + (result.win ? 1 : 0),
+    battlesLost: (state.stats?.battlesLost || 0) + (result.win ? 0 : 1),
+  };
+
+  return {
+    ok: true,
+    result,
+    entry,
+    state: {
+      ...state,
+      resources,
+      stats,
+      army: { ...state.army, units: remainingUnits },
+      battle: { ...state.battle, history },
+    },
+  };
+}
+
+/** حریفان تازه برای نقشه‌ی نبرد. */
+export function refreshOpponents(state, { seed } = {}) {
+  const nextSeed = seed ?? ((state.battle?.seed || 7) + 1);
+  const level = castleLevel(state.village);
+  return {
+    seed: nextSeed,
+    opponents: createOpponents(level, nextSeed),
+    state: { ...state, battle: { ...state.battle, seed: nextSeed } },
   };
 }

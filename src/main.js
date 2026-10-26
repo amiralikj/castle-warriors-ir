@@ -6,10 +6,12 @@ import { renderShell, SCREEN_IDS, SCREENS } from './ui/shell.js';
 import { renderPlaceholder } from './ui/screens/placeholder.js';
 import { renderVillage, updateTimers, updateResourceBar } from './ui/screens/village.js';
 import { renderArmy, updateTrainingProgress } from './ui/screens/army.js';
+import { renderBattle } from './ui/screens/battle.js';
 import { createRouter, routeHref } from './ui/router.js';
 import { createStore } from './ui/store.js';
 import { browserStorage } from './core/persistence.js';
-import { buildBuilding, upgradeBuilding, trainUnits } from './core/actions.js';
+import { buildBuilding, upgradeBuilding, trainUnits, attackEnemy, refreshOpponents } from './core/actions.js';
+import { generateEnemy } from './core/battle.js';
 import { moveBuilding, findByUid } from './core/village.js';
 import { BUILDINGS } from './data/buildings.js';
 import { TROOPS } from './data/troops.js';
@@ -23,6 +25,8 @@ const ui = {
   buildType: null,
   buildOpen: false,
   moveUid: null,
+  battleResult: null,
+  battleEnemyName: null,
   now: Date.now(),
 };
 let routeName = 'village';
@@ -41,6 +45,7 @@ function paintScreen() {
   if (!screen) return;
   if (routeName === 'village') screen.innerHTML = renderVillage(state, ui);
   else if (routeName === 'army') screen.innerHTML = renderArmy(state, ui);
+  else if (routeName === 'battle') screen.innerHTML = renderBattle(state, ui);
   else screen.innerHTML = renderPlaceholder(routeName);
   updateResourceBar(app, state);
   syncNav();
@@ -127,10 +132,34 @@ function train(type, count) {
   toast(`آموزش ${faNumber(result.job.count)} ${TROOPS[type].name} شروع شد.`, 'success');
 }
 
+function attack(seed, level) {
+  const enemy = generateEnemy({ seed: Number(seed), level: Number(level) });
+  const result = attackEnemy(store.getState(), { enemy, now: Date.now(), seed: Number(seed) });
+  if (!result.ok) {
+    toast(result.message || 'حمله ممکن نشد.', 'error');
+    return;
+  }
+  store.setState(result.state);
+  ui.battleResult = result.result;
+  ui.battleEnemyName = enemy.name;
+  paintScreen();
+  toast(
+    result.result.win
+      ? `پیروزی! ${faNumber(result.result.loot.gold)} طلا و ${faNumber(result.result.loot.wheat)} گندم غنیمت گرفتی.`
+      : 'سپاه عقب نشست؛ سرباز بیشتری آموزش بده.',
+    result.result.win ? 'success' : 'error',
+  );
+}
+
 function handleClick(event) {
-  const target = event.target.closest('[data-action],[data-build],[data-uid],[data-cell],[data-train]');
+  const target = event.target.closest('[data-action],[data-build],[data-uid],[data-cell],[data-train],[data-attack]');
   if (!target) return;
   const state = store.getState();
+
+  if (target.dataset.attack) {
+    attack(target.dataset.attack, target.dataset.level);
+    return;
+  }
 
   if (target.dataset.train) {
     train(target.dataset.train, target.dataset.count);
@@ -161,6 +190,19 @@ function handleClick(event) {
       case 'upgrade':
         upgrade(ui.selectedUid);
         return;
+      case 'close-result':
+        ui.battleResult = null;
+        ui.battleEnemyName = null;
+        paintScreen();
+        return;
+      case 'refresh-opponents': {
+        const refreshed = refreshOpponents(state);
+        store.setState(refreshed.state);
+        ui.battleResult = null;
+        paintScreen();
+        toast('حریفان تازه‌ای به نقشه آمدند.');
+        return;
+      }
       case 'move':
         ui.moveUid = ui.selectedUid;
         ui.buildType = null;
