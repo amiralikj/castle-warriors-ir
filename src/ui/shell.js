@@ -60,6 +60,8 @@ export function renderShell({ active = 'village', resources = {}, date = new Dat
 
     <main class="screen" id="screen" tabindex="-1"></main>
 
+    <div class="toasts" id="toasts" aria-live="polite" aria-atomic="false"></div>
+
     <nav class="nav" aria-label="ناوبری اصلی">
       <div class="nav__inner">
         ${SCREENS.map((screen) => navItem(screen, active)).join('')}
