@@ -61,6 +61,21 @@ export function poly(points, fill, extra = '') {
   return `<polygon points="${points.map(pt).join(' ')}" fill="${fill}" ${extra}/>`;
 }
 
+/**
+ * چندضلعی با لبه‌های کمی ناهموار (حس نقاشی کورلی).
+ * @param {{x:number,y:number}[]} points
+ * @param {string} fill
+ * @param {{seed?: number, stroke?: string, strokeWidth?: number, jitter?: number, extra?: string}} options
+ */
+export function roughPoly(points, fill, { seed = 1, stroke = OUTLINE, strokeWidth = 1.2, jitter = 0.9, extra = '' } = {}) {
+  const pts = points.map((p, i) => {
+    const r = 0.5 + 0.5 * Math.sin(seed * 12.9898 + i * 78.233);
+    return { x: p.x + (r - 0.5) * jitter * 2, y: p.y + (r - 0.5) * jitter * 2 };
+  });
+  const d = pts.map((p, i) => `${i === 0 ? 'M' : 'L'} ${round(p.x)} ${round(p.y)}`).join(' ');
+  return `<path d="${d} Z" fill="${fill}" stroke="${stroke}" stroke-width="${strokeWidth}" stroke-linejoin="round"/>`;
+}
+
 /** الماس یک خانه (برای زمین و پد ساختمان). */
 export function diamond(tx, ty, w, d, fill, extra = '') {
   return poly(diamondPoints(tx, ty, w, d), fill, extra);
@@ -91,9 +106,10 @@ export function box(tx, ty, w, d, {
   const at = { x: a.x, y: a.y - h };
 
   return [
-    poly([b, c, ct, bt], right, stroke),
-    poly([e, c, ct, et], left, stroke),
-    poly([at, bt, ct, et], top, `${stroke} ${extra}`),
+    roughPoly([b, c, ct, bt], right, { seed: tx * 3 + ty * 5 + 1, strokeWidth: outlineWidth }),
+    roughPoly([e, c, ct, et], left, { seed: tx * 7 + ty * 2 + 3, strokeWidth: outlineWidth }),
+    roughPoly([at, bt, ct, et], top, { seed: tx * 5 + ty * 11 + 5, strokeWidth: outlineWidth, extra: '' }),
+    extra,
   ].join('');
 }
 
