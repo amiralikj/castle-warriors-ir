@@ -39,7 +39,11 @@ test('پوسته منابع، نشان بازیکن، جام و ناوبری ف�
   assert.match(html, /aria-current="page"/);
   assert.match(html, /<main class="views" id="screen"[^>]*><p>محتوا<\/p>/);
   assert.match(html, /جنگاوران قلعه/);
-  assert.match(html, /data-action="zoom-in"/);
+  // دکمه‌های زوم فقط در صفحه‌ی دهکده معنا دارند و نباید روی برگه‌های دیگر شناور بمانند
+  assert.doesNotMatch(html, /data-action="zoom-in"/);
+  const village = renderShell({ active: 'village', state, content: '' });
+  assert.match(village, /data-action="zoom-in"/);
+  assert.match(village, /data-action="camera-reset"/);
   assert.equal(trophiesOf(state), 36);
 });
 

@@ -70,11 +70,15 @@ export function renderShell({ active = 'village', state, camera, content = '' } 
       </div>
     </header>
 
-    <div class="zoom-bar" aria-label="بزرگ‌نمایی">
+    ${
+      active === 'village'
+        ? `<div class="zoom-bar" aria-label="بزرگ‌نمایی">
       <button class="zoom" data-action="zoom-in" aria-label="بزرگ‌تر">+</button>
       <button class="zoom" data-action="zoom-out" aria-label="کوچک‌تر">−</button>
       <button class="zoom zoom--home" data-action="camera-reset" aria-label="نمای کامل دهکده">${icon('village', { size: 20 })}</button>
-    </div>
+    </div>`
+        : ''
+    }
 
     <main class="views" id="screen" tabindex="-1">${content}</main>
 

@@ -1747,7 +1747,13 @@ svg.scene text {
   }
 
   .hud__trophy {
-    inset-block-start: 64px;
+    inset-block-start: 62px;
+  }
+
+  .page,
+  .page--army,
+  .page--battle {
+    padding-top: calc(env(safe-area-inset-top, 0px) + 100px);
   }
 
   .dock__inner {
