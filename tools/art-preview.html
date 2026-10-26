@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="fa" dir="rtl">
+  <head>
+    <meta charset="utf-8" />
+    <title>پیش‌نمایش هنر بازی</title>
+    <style>
+      @font-face { font-family: 'Vazirmatn'; src: url('../assets/fonts/Vazirmatn-Bold.woff2') format('woff2'); font-weight: 700; }
+      @font-face { font-family: 'Vazirmatn'; src: url('../assets/fonts/Vazirmatn-Regular.woff2') format('woff2'); font-weight: 400; }
+      html, body { margin: 0; height: 100%; background: radial-gradient(circle at 50% 20%, #2a3c5e, #0a101c 70%); font-family: 'Vazirmatn', sans-serif; }
+      svg.scene { width: 100vw; height: 100vh; display: block; }
+      svg text { font-family: 'Vazirmatn', sans-serif; }
+    </style>
+  </head>
+  <body>
+    <div id="stage"></div>
+    <script type="module">
+      import { renderScene } from '../src/ui/art/scene.js';
+      import { BUILDINGS } from '../src/data/buildings.js';
+      const layout = [
+        ['castle', 8, 8],
+        ['goldMine', 3, 3],
+        ['farm', 3, 8],
+        ['goldStorage', 3, 13],
+        ['wheatStorage', 13, 3],
+        ['barracks', 13, 8],
+        ['watchtower', 8, 3],
+        ['fireTemple', 8, 14],
+        ['workshop', 14, 14],
+      ];
+      const buildings = layout.map(([type, x, y], index) => ({
+        uid: index + 1, type, level: (index % 4) + 1, x, y, state: 'idle', startedAt: null, completeAt: null, targetLevel: null,
+      }));
+      document.querySelector('#stage').innerHTML = renderScene(
+        { size: 20, buildings, nextUid: 20 },
+        { now: Date.now(), camera: { x: 0, y: 0, zoom: 1 } },
+      );
+      document.body.dataset.ready = 'true';
+      window.__artReady = true;
+    </script>
+  </body>
+</html>

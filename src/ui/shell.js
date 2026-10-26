@@ -1,71 +1,116 @@
-import { faDate } from '../utils/format.js';
+/**
+ * پوسته‌ی بازی: نوار منابع بالای صفحه، نشان بازیکن، جام،
+ * دکمه‌های زوم و نوار پایین (Dock) با پنج بخش.
+ */
+import { faDate, faNumber } from '../utils/format.js';
 import { icon } from './icons.js';
+import { emblem, coinBadge, gemBadge, wheatBadge, trophyBadge, dockIcon } from './art/figures.js';
 
-/** صفحه‌های برنامه و موجی که هرکدام در آن ساخته می‌شود. */
 export const SCREENS = [
-  { id: 'village', label: 'روستا', icon: 'castle', wave: 6 },
-  { id: 'army', label: 'ارتش', icon: 'army', wave: 8 },
-  { id: 'battle', label: 'نبرد', icon: 'swords', wave: 9 },
+  { id: 'village', label: 'دهکده', icon: 'village', wave: 6 },
+  { id: 'build', label: 'ساختن', icon: 'hammer', wave: 4 },
+  { id: 'army', label: 'سپاه', icon: 'shield', wave: 8 },
+  { id: 'battle', label: 'نبرد', icon: 'sword', wave: 10 },
   { id: 'more', label: 'بیشتر', icon: 'more', wave: 17 },
 ];
 
 export const SCREEN_IDS = SCREENS.map((screen) => screen.id);
 
-const RESOURCES = [
-  { id: 'gold', label: 'طلا', icon: 'gold' },
-  { id: 'wheat', label: 'گندم', icon: 'wheat' },
-  { id: 'gems', label: 'گوهر', icon: 'gems' },
-];
-
-function resourceChip({ id, label, icon: iconName }, value) {
-  const shown = value === undefined || value === null ? '—' : value;
-  return `
-    <div class="resource" data-resource="${id}">
-      <span class="resource__icon">${icon(iconName, { size: 18 })}</span>
-      <span class="resource__value">${shown}</span>
-      <span class="resource__label">${label}</span>
-    </div>
-  `;
+/** شهرت/جام: از تعداد بردها ساخته می‌شود. */
+export function trophiesOf(state) {
+  const won = state.stats?.battlesWon || 0;
+  return won * 12;
 }
 
-function navItem(screen, active) {
-  const current = screen.id === active;
+function resourcePill(kind, art, value, label) {
   return `
-    <a class="nav__item${current ? ' is-active' : ''}" href="#/${screen.id}"
-       ${current ? 'aria-current="page"' : ''}>
-      ${icon(screen.icon, { size: 24 })}
-      <span>${screen.label}</span>
-    </a>
-  `;
+    <button class="res res--${kind}" data-action="resource-${kind}" aria-label="${label}: ${value}">
+      <span class="res__art">${art}</span>
+      <span class="res__value">${value}</span>
+      <span class="res__plus" aria-hidden="true">+</span>
+    </button>`;
 }
 
 /**
- * پوسته‌ی اصلی برنامه را می‌سازد.
- * @param {{active?: string, resources?: Record<string, string>, date?: Date}} options
+ * پوسته‌ی اصلی. صحنه‌ی دهکده بیرون از این تابع گذاشته می‌شود (در بدنه‌ی صفحه).
+ * @param {{active?: string, state?: object, camera?: object}} options
  */
-export function renderShell({ active = 'village', resources = {}, date = new Date() } = {}) {
+export function renderShell({ active = 'village', state, camera, content = '' } = {}) {
+  const level = state?.village?.buildings?.find((b) => b.type === 'castle')?.level ?? 1;
+  const xp = Math.min(1, (state?.stats?.buildingsBuilt || 1) / 24 + level * 0.04);
+  const resources = state?.resources || { gold: 0, wheat: 0, gems: 0 };
+  const villageName = state?.settings?.villageName || 'دهکده‌ی من';
+  const trophies = state ? trophiesOf(state) : 0;
+
   return `
-    <header class="topbar">
-      <div class="topbar__brand">
-        <span class="topbar__crest" aria-hidden="true">🏰</span>
-        <div>
-          <h1 class="topbar__title">جنگاوران قلعه</h1>
-          <p class="topbar__date">${icon('clock', { size: 14 })} ${faDate(date)}</p>
+    <span class="sr-only">جنگاوران قلعه — بازی استراتژی ایرانی</span>
+    <header class="hud">
+      <div class="hud__player">
+        <button class="player" data-action="open-profile" aria-label="پروفایل بازیکن">
+          <span class="player__crest">${emblem({ size: 52 })}</span>
+          <span class="player__level">${faNumber(level)}</span>
+        </button>
+        <div class="hud__meta">
+          <span class="hud__name">${villageName}</span>
+          <span class="hud__xp" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${Math.round(xp * 100)}" aria-label="پیشرفت سطح">
+            <i style="--p:${xp.toFixed(3)}"></i>
+          </span>
         </div>
       </div>
-      <div class="topbar__resources" aria-label="منابع">
-        ${RESOURCES.map((resource) => resourceChip(resource, resources[resource.id])).join('')}
+
+      <div class="hud__trophy" aria-label="جام‌ها">
+        ${trophyBadge({ size: 26 })}
+        <span>${faNumber(trophies)}</span>
+      </div>
+
+      <div class="hud__res">
+        ${resourcePill('gold', coinBadge({ size: 30 }), faNumber(resources.gold), 'طلا')}
+        ${resourcePill('wheat', wheatBadge({ size: 30 }), faNumber(resources.wheat), 'گندم')}
+        ${resourcePill('gems', gemBadge({ size: 30 }), faNumber(resources.gems), 'گوهر')}
       </div>
     </header>
 
-    <main class="screen" id="screen" tabindex="-1"></main>
+    <div class="zoom-bar" aria-label="بزرگ‌نمایی">
+      <button class="zoom" data-action="zoom-in" aria-label="بزرگ‌تر">+</button>
+      <button class="zoom" data-action="zoom-out" aria-label="کوچک‌تر">−</button>
+      <button class="zoom zoom--home" data-action="camera-reset" aria-label="نمای کامل دهکده">${icon('village', { size: 20 })}</button>
+    </div>
+
+    <main class="views" id="screen" tabindex="-1">${content}</main>
 
     <div class="toasts" id="toasts" aria-live="polite" aria-atomic="false"></div>
 
-    <nav class="nav" aria-label="ناوبری اصلی">
-      <div class="nav__inner">
-        ${SCREENS.map((screen) => navItem(screen, active)).join('')}
+    <nav class="dock" aria-label="ناوبری اصلی">
+      <div class="dock__inner">
+        ${SCREENS.map(
+          (screen) => `
+          <button class="dock__btn${screen.id === active ? ' is-active' : ''}" data-tab="${screen.id}"
+            ${screen.id === active ? 'aria-current="page"' : ''}>
+            <span class="dock__icon">${dockIcon(screen.icon, { size: 27 })}</span>
+            <span class="dock__label">${screen.label}</span>
+          </button>`,
+        ).join('')}
       </div>
     </nav>
+
+    <span class="sr-only">تاریخ امروز: ${faDate()}</span>
   `;
+}
+
+/** فقط مقدار منابع و جام را به‌روز می‌کند (بدون رندر دوباره). */
+export function updateHud(root, state) {
+  const values = {
+    gold: faNumber(state.resources.gold),
+    wheat: faNumber(state.resources.wheat),
+    gems: faNumber(state.resources.gems),
+  };
+  for (const [kind, value] of Object.entries(values)) {
+    const el = root.querySelector(`.res--${kind} .res__value`);
+    if (el) el.textContent = value;
+  }
+  const trophies = root.querySelector('.hud__trophy span');
+  if (trophies) trophies.textContent = faNumber(trophiesOf(state));
+  const level = state.village.buildings.find((b) => b.type === 'castle')?.level ?? 1;
+  const levelEl = root.querySelector('.player__level');
+  if (levelEl) levelEl.textContent = faNumber(level);
 }

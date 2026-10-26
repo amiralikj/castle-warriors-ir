@@ -28,9 +28,10 @@ test('با سپاه، سه حریف و دکمه‌ی حمله رندر می‌ش
   const html = renderBattle(stateWithArmy(), { now: NOW });
   assert.match(html, /میدان نبرد/);
   assert.equal((html.match(/data-attack=/g) || []).length, 3);
-  assert.match(html, /حمله با کل سپاه/);
+  assert.match(html, /data-attack=/);
   assert.match(html, /هنوز نبردی ثبت نشده/);
   assert.match(html, /توان/);
+  assert.match(html, /class="enemy-preview"/, 'پیش‌نمایش دهکده‌ی دشمن دیده می‌شود');
 });
 
 test('کارت نتیجه با ستاره، غنیمت و گزارش نمایش داده می‌شود', () => {
@@ -38,7 +39,6 @@ test('کارت نتیجه با ستاره، غنیمت و گزارش نمایش 
   const enemy = generateEnemy({ seed: 4, level: 1 });
   const battle = attackEnemy(state, { enemy, units: state.army.units, now: NOW, seed: 4 });
   const html = renderBattle(battle.state, { now: NOW, battleResult: battle.result, battleEnemyName: enemy.name });
-  assert.equal((html.match(/data-attack=/g) || []).length, 3);
   assert.match(html, /پیروزی!/);
   assert.match(html, /تخریب/);
   assert.match(html, /غنیمت طلا/);

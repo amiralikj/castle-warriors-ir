@@ -1,25 +1,27 @@
 /**
  * نقطه‌ی ورود بازی «جنگاوران قلعه»
- * موج ۶: اتصال وضعیت، ذخیره‌سازی، صفحه‌ی تعاملی دهکده و ناوبری.
+ * موج ۱۱: صحنه‌ی ایزومتریک، پوسته‌ی بازی‌گونه، دوربین و برگه‌های موبایلی.
  */
-import { renderShell, SCREEN_IDS, SCREENS } from './ui/shell.js';
-import { renderPlaceholder } from './ui/screens/placeholder.js';
-import { renderVillage, updateTimers, updateResourceBar } from './ui/screens/village.js';
+import { renderShell, updateHud, SCREEN_IDS } from './ui/shell.js';
+import { renderVillage, updateTimers } from './ui/screens/village.js';
+import { renderBuild } from './ui/screens/build.js';
 import { renderArmy, updateTrainingProgress } from './ui/screens/army.js';
 import { renderBattle } from './ui/screens/battle.js';
-import { createRouter, routeHref } from './ui/router.js';
+import { renderMore } from './ui/screens/more.js';
+import { createRouter } from './ui/router.js';
 import { createStore } from './ui/store.js';
 import { browserStorage } from './core/persistence.js';
 import { buildBuilding, upgradeBuilding, trainUnits, attackEnemy, refreshOpponents } from './core/actions.js';
-import { generateEnemy } from './core/battle.js';
 import { moveBuilding, findByUid } from './core/village.js';
-import { BUILDINGS } from './data/buildings.js';
+import { BUILDINGS, constructionSeconds } from './data/buildings.js';
 import { TROOPS } from './data/troops.js';
+import { generateEnemy } from './core/battle.js';
 import { faDuration, faNumber } from './utils/format.js';
+import { attachCamera, applyCamera, zoomBy, DEFAULT_CAMERA, clampCamera } from './ui/art/camera.js';
 
 const app = document.querySelector('#app');
-
 const store = createStore({ storage: browserStorage() });
+
 const ui = {
   selectedUid: null,
   buildType: null,
@@ -27,40 +29,67 @@ const ui = {
   moveUid: null,
   battleResult: null,
   battleEnemyName: null,
+  camera: { ...DEFAULT_CAMERA },
   now: Date.now(),
 };
+
 let routeName = 'village';
 let toastTimer = null;
+let router = null;
 
-/* ---------- نمایش ---------- */
+/* ------------------------------------------------------------- اندازه‌ها */
 
-function renderOnce() {
-  app.innerHTML = renderShell({ active: routeName });
-  paintScreen();
+function viewport() {
+  const width = typeof window !== 'undefined' && window.innerWidth ? window.innerWidth : 1440;
+  const height = typeof window !== 'undefined' && window.innerHeight ? window.innerHeight : 1040;
+  return { width, height };
 }
 
-function paintScreen() {
+/* ------------------------------------------------------------- رندر صفحه‌ها */
+
+function viewFor(name) {
   const state = store.getState();
-  const screen = app.querySelector('#screen');
-  if (!screen) return;
-  if (routeName === 'village') screen.innerHTML = renderVillage(state, ui);
-  else if (routeName === 'army') screen.innerHTML = renderArmy(state, ui);
-  else if (routeName === 'battle') screen.innerHTML = renderBattle(state, ui);
-  else screen.innerHTML = renderPlaceholder(routeName);
-  updateResourceBar(app, state);
-  syncNav();
+  switch (name) {
+    case 'build':
+      return renderBuild(state, ui);
+    case 'army':
+      return renderArmy(state, ui);
+    case 'battle':
+      return renderBattle(state, ui);
+    case 'more':
+      return renderMore(state, ui);
+    case 'village':
+    default:
+      return renderVillage(state, { ...ui, viewport: viewport() });
+  }
 }
 
-function syncNav() {
-  for (const link of app.querySelectorAll('.nav__item')) {
-    const name = link.getAttribute('href').replace('#/', '');
-    const active = name === routeName;
-    link.classList.toggle('is-active', active);
-    if (active) link.setAttribute('aria-current', 'page');
-    else link.removeAttribute('aria-current');
-  }
+function paint() {
+  const state = store.getState();
+  app.innerHTML = renderShell({ active: routeName, state, content: viewFor(routeName) });
   document.body.dataset.screen = routeName;
+  if (routeName === 'village') wireStage();
 }
+
+/** اتصال دوربین به صحنه‌ی تازه‌رندرشده. */
+function wireStage() {
+  const stage = app.querySelector('.stage');
+  if (!stage) return;
+  attachCamera(stage, {
+    getCamera: () => ui.camera,
+    setCamera: (camera) => {
+      ui.camera = clampCamera(camera);
+    },
+  });
+  const svg = app.querySelector('svg.scene');
+  if (svg) applyCamera(svg, ui.camera);
+}
+
+function currentSvg() {
+  return app.querySelector('svg.scene');
+}
+
+/* ------------------------------------------------------------- اعلان‌ها */
 
 function toast(message, kind = 'info') {
   const stack = app.querySelector('#toasts');
@@ -70,10 +99,22 @@ function toast(message, kind = 'info') {
   el.textContent = message;
   stack.replaceChildren(el);
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => el.remove(), kind === 'error' ? 4200 : 2800);
+  toastTimer = setTimeout(() => el.remove(), kind === 'error' ? 4400 : 3000);
 }
 
-/* ---------- رفتار ---------- */
+/* ----------------------------------------------------------------- اکشن‌ها */
+
+function go(name) {
+  if (routeName === name) {
+    paint();
+    return;
+  }
+  if (typeof window !== 'undefined' && window.location) window.location.hash = `#/${name}`;
+  else {
+    routeName = name;
+    paint();
+  }
+}
 
 function selectBuild(id) {
   const def = BUILDINGS[id];
@@ -81,21 +122,24 @@ function selectBuild(id) {
   ui.buildType = id;
   ui.buildOpen = false;
   ui.selectedUid = null;
-  paintScreen();
-  toast(`${def.name} را انتخاب کردی؛ روی زمین خالی بزن.`);
+  ui.moveUid = null;
+  routeName = 'village';
+  if (typeof window !== 'undefined' && window.location) window.location.hash = '#/village';
+  paint();
+  toast(`${def.name} را انتخاب کردی؛ زمین سبز را لمس کن.`);
 }
 
 function placeAt(x, y) {
-  const now = Date.now();
-  const result = buildBuilding(store.getState(), { type: ui.buildType, x, y, now });
+  const result = buildBuilding(store.getState(), { type: ui.buildType, x, y, now: Date.now() });
   if (!result.ok) {
     toast(result.message || 'ساخت ممکن نشد.', 'error');
     return;
   }
   store.setState(result.state);
-  toast(`ساخت ${BUILDINGS[ui.buildType].name} شروع شد.`, 'success');
+  const def = BUILDINGS[ui.buildType];
   ui.buildType = null;
-  paintScreen();
+  paint();
+  toast(`ساخت ${def.name} آغاز شد — ${faDuration(constructionSeconds(def.id, 1))}`, 'success');
 }
 
 function relocateTo(uid, x, y) {
@@ -106,7 +150,7 @@ function relocateTo(uid, x, y) {
   }
   store.setState({ ...store.getState(), village: result.village });
   ui.moveUid = null;
-  paintScreen();
+  paint();
   toast('ساختمان جابه‌جا شد.', 'success');
 }
 
@@ -117,8 +161,8 @@ function upgrade(uid) {
     return;
   }
   store.setState(result.state);
-  paintScreen();
-  toast(`ارتقا شروع شد؛ ${faDuration(result.seconds)} طول می‌کشد.`, 'success');
+  paint();
+  toast(`ارتقا آغاز شد — ${faDuration(result.seconds)}`, 'success');
 }
 
 function train(type, count) {
@@ -128,8 +172,8 @@ function train(type, count) {
     return;
   }
   store.setState(result.state);
-  paintScreen();
-  toast(`آموزش ${faNumber(result.job.count)} ${TROOPS[type].name} شروع شد.`, 'success');
+  paint();
+  toast(`${faNumber(result.job.count)} ${TROOPS[type].name} در صف آموزش قرار گرفت.`, 'success');
 }
 
 function attack(seed, level) {
@@ -142,16 +186,38 @@ function attack(seed, level) {
   store.setState(result.state);
   ui.battleResult = result.result;
   ui.battleEnemyName = enemy.name;
-  paintScreen();
-  toast(
-    result.result.win
-      ? `پیروزی! ${faNumber(result.result.loot.gold)} طلا و ${faNumber(result.result.loot.wheat)} گندم غنیمت گرفتی.`
-      : 'سپاه عقب نشست؛ سرباز بیشتری آموزش بده.',
-    result.result.win ? 'success' : 'error',
-  );
+  paint();
+  if (result.result.win) {
+    toast(
+      `پیروزی! ${faNumber(result.result.loot.gold)} طلا و ${faNumber(result.result.loot.wheat)} گندم غنیمت`,
+      'reward',
+    );
+  } else {
+    toast('سپاه عقب نشست؛ نیروی بیشتری آموزش بده.', 'error');
+  }
 }
 
+function resetSave() {
+  store.reset();
+  ui.selectedUid = null;
+  ui.buildOpen = false;
+  ui.buildType = null;
+  ui.moveUid = null;
+  ui.battleResult = null;
+  ui.camera = { ...DEFAULT_CAMERA };
+  paint();
+  toast('دهکده از نو ساخته شد.', 'success');
+}
+
+/* ------------------------------------------------------------- رویدادها */
+
 function handleClick(event) {
+  const tab = event.target.closest('[data-tab]');
+  if (tab) {
+    go(tab.dataset.tab);
+    return;
+  }
+
   const target = event.target.closest('[data-action],[data-build],[data-uid],[data-cell],[data-train],[data-attack]');
   if (!target) return;
   const state = store.getState();
@@ -166,106 +232,149 @@ function handleClick(event) {
     return;
   }
 
+  if (target.dataset.build) {
+    selectBuild(target.dataset.build);
+    return;
+  }
+
   if (target.dataset.action) {
     switch (target.dataset.action) {
       case 'open-build':
         ui.buildOpen = true;
         ui.buildType = null;
         ui.moveUid = null;
-        paintScreen();
+        paint();
         return;
-      case 'close-build':
+      case 'close-sheet':
         ui.buildOpen = false;
-        paintScreen();
-        return;
-      case 'close-detail':
         ui.selectedUid = null;
-        paintScreen();
-        return;
-      case 'cancel-mode':
-        ui.buildType = null;
-        ui.moveUid = null;
-        paintScreen();
-        return;
-      case 'upgrade':
-        upgrade(ui.selectedUid);
+        paint();
         return;
       case 'close-result':
         ui.battleResult = null;
         ui.battleEnemyName = null;
-        paintScreen();
+        paint();
+        return;
+      case 'cancel-mode':
+        ui.buildType = null;
+        ui.moveUid = null;
+        paint();
+        return;
+      case 'upgrade':
+        if (ui.selectedUid) upgrade(ui.selectedUid);
+        return;
+      case 'move':
+        ui.moveUid = ui.selectedUid;
+        ui.selectedUid = null;
+        ui.buildType = null;
+        paint();
+        toast('زمین خالی را لمس کن تا ساختمان جابه‌جا شود.');
+        return;
+      case 'zoom-in':
+        ui.camera = zoomBy(ui.camera, 1.22);
+        applyCamera(currentSvg(), ui.camera);
+        return;
+      case 'zoom-out':
+        ui.camera = zoomBy(ui.camera, 0.82);
+        applyCamera(currentSvg(), ui.camera);
+        return;
+      case 'camera-reset':
+        ui.camera = { ...DEFAULT_CAMERA };
+        applyCamera(currentSvg(), ui.camera);
         return;
       case 'refresh-opponents': {
         const refreshed = refreshOpponents(state);
         store.setState(refreshed.state);
         ui.battleResult = null;
-        paintScreen();
+        paint();
         toast('حریفان تازه‌ای به نقشه آمدند.');
         return;
       }
-      case 'move':
-        ui.moveUid = ui.selectedUid;
-        ui.buildType = null;
-        paintScreen();
-        toast('روی زمین خالی بزن تا ساختمان جابه‌جا شود.');
+      case 'open-profile':
+        go('more');
+        return;
+      case 'go-build':
+        go('build');
+        return;
+      case 'toggle-sound':
+        store.setState({ ...state, settings: { ...state.settings, sound: state.settings?.sound === false } });
+        paint();
+        toast(state.settings?.sound === false ? 'صدا روشن شد.' : 'صدا خاموش شد.');
+        return;
+      case 'show-help':
+        toast('معدن و کشتزار بساز، ارگ را ارتقا بده، سپاه آموزش بده و حمله کن.');
+        return;
+      case 'reset-save':
+        resetSave();
+        return;
+      case 'resource-gold':
+      case 'resource-wheat':
+        toast(`منابع در هر ساعت تولید می‌شوند؛ انبار بساز تا سقف بالا برود.`);
+        return;
+      case 'resource-gems':
+        toast('خرید گوهر هنوز فعال نیست؛ فعلاً از جایزه‌ها گوهر بگیر.', 'error');
         return;
       default:
         return;
     }
   }
 
-  if (target.dataset.build) {
-    selectBuild(target.dataset.build);
-    return;
-  }
-
   if (target.dataset.uid) {
     const uid = Number(target.dataset.uid);
     if (!findByUid(state.village, uid)) return;
     if (ui.buildType) {
-      toast('اینجا پر است؛ زمین خالی انتخاب کن.', 'error');
+      toast('اینجا پر است؛ زمین خالی لمس کن.', 'error');
       return;
     }
     ui.selectedUid = uid;
-    paintScreen();
+    paint();
     return;
   }
 
   if (target.dataset.cell) {
     const [x, y] = target.dataset.cell.split(',').map(Number);
+    if (!Number.isFinite(x) || !Number.isFinite(y)) return;
     if (ui.buildType) placeAt(x, y);
     else if (ui.moveUid) relocateTo(ui.moveUid, x, y);
     else if (ui.selectedUid) {
       ui.selectedUid = null;
-      paintScreen();
+      paint();
     }
   }
 }
 
-/* ---------- حلقه‌ی زمان ---------- */
+/* ------------------------------------------------------------- حلقه‌ی زمان */
 
 function tickLoop() {
   const now = Date.now();
   ui.now = now;
-  const report = store.advance();
   const state = store.getState();
-  updateResourceBar(app, state);
-  const completed = updateTimers(app, now);
+  const before = state.stats;
+  const report = store.advance();
+  const next = store.getState();
+
+  updateHud(app, next);
+  updateTimers(app, now);
   updateTrainingProgress(app, now);
-  if (completed > 0 || report.completed > 0) {
-    paintScreen();
-    toast('ساخت‌وساز تمام شد. ✅', 'success');
-  }
-  if (report.trained?.length) {
-    paintScreen();
-    const names = report.trained
-      .map((job) => `${faNumber(job.count)} ${TROOPS[job.type]?.name || job.type}`)
-      .join(' و ');
-    toast(`آموزش تمام شد: ${names} به سپاه پیوست.`, 'success');
+
+  const shouldRepaint =
+    report.completed > 0 ||
+    (report.trained?.length || 0) > 0 ||
+    before.buildingsBuilt !== next.stats.buildingsBuilt;
+  if (shouldRepaint) {
+    paint();
+    if (report.trained?.length) {
+      const names = report.trained
+        .map((job) => `${faNumber(job.count)} ${TROOPS[job.type]?.name || job.type}`)
+        .join(' و ');
+      toast(`آموزش تمام شد: ${names} به سپاه پیوست.`, 'success');
+    } else if (report.completed > 0) {
+      toast('ساخت‌وساز تمام شد.', 'success');
+    }
   }
 }
 
-/* ---------- راه‌اندازی ---------- */
+/* ------------------------------------------------------------- راه‌اندازی */
 
 function boot() {
   if (!app) return;
@@ -273,15 +382,19 @@ function boot() {
   document.documentElement.dir = 'rtl';
   document.title = 'جنگاوران قلعه | بازی استراتژی ایرانی';
 
-  renderOnce();
-  createRouter({
+  paint();
+
+  router = createRouter({
     known: SCREEN_IDS,
     onChange: (route) => {
-      routeName = route.name;
-      ui.selectedUid = null;
-      ui.buildOpen = false;
-      ui.buildType = null;
-      paintScreen();
+      routeName = route.name === 'village' && ui.buildOpen ? 'village' : route.name;
+      if (route.name !== 'village') {
+        ui.selectedUid = null;
+        ui.buildType = null;
+        ui.buildOpen = false;
+        ui.moveUid = null;
+      }
+      paint();
     },
   });
 
@@ -289,6 +402,11 @@ function boot() {
   setInterval(tickLoop, 1000);
   setInterval(() => store.save(), 15_000);
 
+  let resizeTimer = null;
+  window.addEventListener('resize', () => {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(() => paint(), 180);
+  });
   window.addEventListener('beforeunload', () => store.save());
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'hidden') store.save();
@@ -300,11 +418,18 @@ function boot() {
     const gains = [];
     if (offline.gold > 0) gains.push(`${faNumber(offline.gold)} طلا`);
     if (offline.wheat > 0) gains.push(`${faNumber(offline.wheat)} گندم`);
-    toast(`در غیاب تو ${faDuration(offline.seconds)} گذشت${gains.length ? ` و ${gains.join(' و ')} جمع شد` : ''}.`);
+    toast(
+      `در غیاب تو ${faDuration(offline.seconds)} گذشت${gains.length ? ` و ${gains.join(' و ')} جمع شد` : ''}.`,
+      'reward',
+    );
   }
 }
 
 // در محیط تست (بدون DOM) فقط ماژول بارگذاری می‌شود.
-if (typeof document !== 'undefined') boot();
+if (typeof document !== 'undefined') {
+  boot();
+  // دسترسی برای اشکال‌زدایی در کنسول مرورگر
+  if (typeof window !== 'undefined') window.__castle = { store, ui, go, paint };
+}
 
-export { store, ui, routeHref, SCREENS };
+export { store, ui, router, renderVillage, renderArmy, renderBattle, renderBuild, renderMore };

@@ -100,9 +100,10 @@ test('بازی بدون خطا بالا می‌آید و صفحه‌ی دهکد�
   try {
     await import(pathToFileURL(path.join(ROOT, 'src/main.js')).href + `?boot=${Date.now()}`);
     assert.match(fake.app.innerHTML, /جنگاوران قلعه/, 'پوسته ساخته می‌شود');
-    assert.match(fake.screen.innerHTML, /دهکده‌ی من/, 'صفحه‌ی دهکده رندر می‌شود');
-    assert.match(fake.screen.innerHTML, /data-cell=/, 'شبکه‌ی دهکده ساخته می‌شود');
-    assert.match(fake.app.innerHTML, /class="nav"/, 'ناوبری وجود دارد');
+    assert.match(fake.app.innerHTML, /دهکده‌ی من/, 'صفحه‌ی دهکده رندر می‌شود');
+    assert.match(fake.app.innerHTML, /data-cell=/, 'صحنه‌ی دهکده ساخته می‌شود');
+    assert.match(fake.app.innerHTML, /class="dock"/, 'ناوبری وجود دارد');
+    assert.match(fake.app.innerHTML, /class="hud"/, 'نوار منابع وجود دارد');
     assert.equal(fake.document.documentElement.dir, 'rtl');
     assert.equal(fake.document.documentElement.lang, 'fa');
     assert.ok(fake.storage.has('castle-warriors-ir:save'), 'وضعیت ذخیره می‌شود');

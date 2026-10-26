@@ -49,11 +49,13 @@ export function generateEnemy({ seed = 1, level = 1, name } = {}) {
   const enemyLevel = Math.max(1, Math.min(10, Math.round(level)));
   const buildings = [];
 
+  // دهکده‌ی دشمن فشرده است تا صحنه‌ی نبرد پر و خوانا باشد
+  const ZONE = { x: 4, y: 4, size: 12 };
   const add = (type, levelOverride = enemyLevel) => {
     const def = BUILDINGS[type];
-    for (let attempt = 0; attempt < 60; attempt += 1) {
-      const x = randomInt(rng, 0, 20 - def.size.w);
-      const y = randomInt(rng, 0, 20 - def.size.h);
+    for (let attempt = 0; attempt < 80; attempt += 1) {
+      const x = randomInt(rng, ZONE.x, ZONE.x + ZONE.size - def.size.w);
+      const y = randomInt(rng, ZONE.y, ZONE.y + ZONE.size - def.size.h);
       if (!canPlaceEnemy(buildings, def, x, y)) continue;
       buildings.push({
         type,

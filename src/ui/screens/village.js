@@ -1,129 +1,55 @@
 /**
- * صفحه‌ی دهکده: شبکه‌ی ۲۰×۲۰، انتخاب ساختمان، ساخت و ارتقا.
- * این ماژول فقط HTML می‌سازد؛ رفتار در src/main.js با واگذاری رویدادها وصل می‌شود.
+ * صفحه‌ی دهکده: صحنه‌ی ایزومتریک + برگه‌ی ساختمان + فروشگاه ساخت.
  */
-import { BUILDINGS, costFor, productionFor, capacityFor, constructionSeconds, isUnlocked } from '../../data/buildings.js';
-import { GRID_SIZE, castleLevel, findByUid, canPlace, isBusy, progressRatio, remainingMs } from '../../core/village.js';
+import {
+  BUILDINGS,
+  costFor,
+  productionFor,
+  capacityFor,
+  constructionSeconds,
+  isUnlocked,
+} from '../../data/buildings.js';
+import {
+  castleLevel,
+  findByUid,
+  canPlace,
+  isBusy,
+  progressRatio,
+  remainingMs,
+} from '../../core/village.js';
 import { upgradePreview } from '../../core/actions.js';
 import { canAfford } from '../../core/economy.js';
 import { faNumber, faDuration, faCountdown } from '../../utils/format.js';
 import { icon } from '../icons.js';
+import { renderSheet, statRow } from '../sheet.js';
+import { renderScene, miniBuilding, DEFAULT_CAMERA } from '../art/scene.js';
 
-export const BUILDING_EMOJI = {
-  castle: '🏰',
-  goldMine: '⛏️',
-  farm: '🌾',
-  goldStorage: '🏦',
-  wheatStorage: '🏚️',
-  barracks: '⚔️',
-  watchtower: '🗼',
-  fireTemple: '🔥',
-  workshop: '🛠️',
+const CATEGORY_LABEL = {
+  resource: 'منابع',
+  storage: 'انبارها',
+  army: 'سپاه',
+  defense: 'دفاع',
+  economy: 'صنعت',
+  main: 'ارگ',
 };
 
-function costChips(cost = {}) {
+export function costChips(cost = {}) {
   const entries = Object.entries(cost).filter(([, value]) => value > 0);
   if (!entries.length) return '<span class="cost cost--free">رایگان</span>';
   return entries
     .map(
       ([key, value]) => `
       <span class="cost cost--${key}">
-        ${icon(key === 'gold' ? 'gold' : key === 'wheat' ? 'wheat' : 'gems', { size: 14 })}
+        ${icon(key === 'gold' ? 'coin' : key === 'wheat' ? 'wheat' : 'gem', { size: 14 })}
         ${faNumber(value)}
       </span>`,
     )
     .join('');
 }
 
-function board(state, ui) {
-  const cells = [];
-  for (let y = 0; y < state.village.size; y += 1) {
-    for (let x = 0; x < state.village.size; x += 1) {
-      const occupied = state.village.buildings.some((building) => {
-        const def = BUILDINGS[building.type];
-        return x >= building.x && x < building.x + def.size.w && y >= building.y && y < building.y + def.size.h;
-      });
-      cells.push(`<div class="board__cell${occupied ? ' is-busy' : ''}" data-cell="${x},${y}" role="gridcell"></div>`);
-    }
-  }
+/* ------------------------------------------------------------ برگه‌ی ساختمان */
 
-  const buildings = state.village.buildings
-    .map((building) => {
-      const def = BUILDINGS[building.type];
-      const busy = isBusy(building);
-      const selected = ui.selectedUid === building.uid;
-      const ratio = busy ? progressRatio(building, ui.now) : 1;
-      const levelLabel = building.state === 'upgrading' ? `${faNumber(building.level)}→${faNumber(building.targetLevel)}` : faNumber(building.level);
-      return `
-        <button class="building building--${def.category}${selected ? ' is-selected' : ''}${busy ? ' is-building' : ''}"
-          style="--x:${building.x};--y:${building.y};--w:${def.size.w};--h:${def.size.h}"
-          data-uid="${building.uid}" data-started-at="${building.startedAt ?? ''}"
-          aria-label="${def.name}، سطح ${faNumber(building.level)}${busy ? '، در حال ساخت' : ''}">
-          <span class="building__emoji" aria-hidden="true">${BUILDING_EMOJI[building.type] || '🏠'}</span>
-          <span class="building__name">${def.name}</span>
-          <span class="building__level">سطح ${levelLabel}</span>
-          ${
-            busy
-              ? `<span class="building__progress" data-progress="${building.completeAt}" style="--p:${ratio}" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${Math.round(ratio * 100)}"></span>
-                 <span class="building__timer" data-timer="${building.completeAt}">${faCountdown(remainingMs(building, ui.now))}</span>`
-              : ''
-          }
-        </button>`;
-    })
-    .join('');
-
-  return `
-    <div class="board" style="--cols:${state.village.size}" role="grid" aria-label="زمین دهکده ${faNumber(state.village.size)} در ${faNumber(state.village.size)}">
-      <div class="board__cells" aria-hidden="true">${cells.join('')}</div>
-      ${buildings}
-    </div>`;
-}
-
-function buildMenu(state, ui) {
-  const level = castleLevel(state.village);
-  const items = Object.values(BUILDINGS)
-    .filter((def) => !def.unique)
-    .map((def) => {
-      const unlocked = isUnlocked(def.id, level);
-      const cost = costFor(def.id, 1);
-      const affordable = canAfford(state.resources, cost);
-      const disabled = !unlocked || !affordable;
-      const detail = productionFor(def.id, 1)
-        ? `تولید ${faNumber(productionFor(def.id, 1).perHour)} در ساعت`
-        : capacityFor(def.id, 1)
-          ? `ظرفیت ${faNumber(capacityFor(def.id, 1).amount)}`
-          : def.description;
-      return `
-        <li class="build-item">
-          <button class="build-item__btn" data-build="${def.id}" ${disabled ? 'disabled' : ''}>
-            <span class="build-item__emoji" aria-hidden="true">${BUILDING_EMOJI[def.id] || '🏠'}</span>
-            <span class="build-item__body">
-              <span class="build-item__title">${def.name}</span>
-              <span class="build-item__detail">${detail}</span>
-              <span class="build-item__meta">
-                ${unlocked ? costChips(cost) : `<span class="cost cost--lock">${icon('castle', { size: 14 })} ارگ سطح ${faNumber(def.unlockAt)}</span>`}
-                <span class="build-item__time">${icon('clock', { size: 14 })} ${faDuration(constructionSeconds(def.id, 1))}</span>
-              </span>
-            </span>
-          </button>
-        </li>`;
-    })
-    .join('');
-
-  return `
-    <div class="modal" role="dialog" aria-modal="true" aria-label="انتخاب ساختمان برای ساخت">
-      <div class="modal__backdrop" data-action="close-build"></div>
-      <div class="modal__sheet">
-        <div class="modal__head">
-          <h3>چه بسازیم؟</h3>
-          <button class="btn btn--ghost btn--sm" data-action="close-build" aria-label="بستن">✕</button>
-        </div>
-        <ul class="build-list">${items}</ul>
-      </div>
-    </div>`;
-}
-
-function detailPanel(state, ui) {
+function detailSheet(state, ui) {
   const building = findByUid(state.village, ui.selectedUid);
   if (!building) return '';
   const def = BUILDINGS[building.type];
@@ -133,86 +59,187 @@ function detailPanel(state, ui) {
   const production = productionFor(building.type, building.level);
   const capacity = capacityFor(building.type, building.level);
 
-  let stats = '';
-  if (production) stats = `تولید: ${faNumber(production.perHour)} ${production.resource === 'gold' ? 'طلا' : 'گندم'} در ساعت`;
-  if (capacity) stats = `ظرفیت: ${faNumber(capacity.amount)} ${capacity.resource === 'gold' ? 'طلا' : 'گندم'}`;
-  if (building.type === 'castle') stats = `قفل ساختمان‌ها با سطح ارگ باز می‌شود.`;
+  const stats = [
+    production
+      ? statRow(
+          'تولید در ساعت',
+          `${faNumber(production.perHour)} ${production.resource === 'gold' ? 'طلا' : 'گندم'}`,
+          'coin',
+        )
+      : '',
+    capacity
+      ? statRow(
+          'ظرفیت انبار',
+          `${faNumber(capacity.amount)} ${capacity.resource === 'gold' ? 'طلا' : 'گندم'}`,
+          'gem',
+        )
+      : '',
+    statRow('سطح', `${faNumber(building.level)} از ${faNumber(def.maxLevel)}`, 'star'),
+    statRow('دسته', CATEGORY_LABEL[def.category] || def.category, 'hammer'),
+  ]
+    .filter(Boolean)
+    .join('');
 
-  return `
-    <section class="detail" aria-label="جزئیات ساختمان">
-      <div class="detail__head">
-        <span class="detail__emoji" aria-hidden="true">${BUILDING_EMOJI[building.type] || '🏠'}</span>
-        <div>
-          <h3>${def.name} <span class="detail__level">سطح ${faNumber(building.level)}</span></h3>
-          <p class="muted">${stats || def.description}</p>
-        </div>
-        <button class="btn btn--ghost btn--sm" data-action="close-detail" aria-label="بستن">✕</button>
+  const body = `
+    <div class="detail">
+      <div class="detail__art">${miniBuilding(building.type, { size: 120 })}</div>
+      <div class="detail__info">
+        <h4 class="detail__name">${def.name}</h4>
+        <p class="detail__desc">${def.description}</p>
+        <div class="detail__stats">${stats}</div>
       </div>
-      ${
-        busy
-          ? `<div class="detail__busy">
-               ${icon('clock', { size: 16 })}
-               ${building.state === 'building' ? 'در حال ساخت' : 'در حال ارتقا'}
-               — <span data-timer="${building.completeAt}">${faCountdown(remainingMs(building, ui.now))}</span>
-             </div>`
-          : `<div class="detail__actions">
-               <button class="btn btn--primary" data-action="upgrade" ${preview.atMax || !affordable ? 'disabled' : ''}>
-                 ${preview.atMax ? 'بالاترین سطح' : `ارتقا به سطح ${faNumber(building.level + 1)}`}
-               </button>
-               <button class="btn" data-action="move" ${building.type === 'castle' ? 'disabled' : ''}>جابه‌جایی</button>
-               <div class="detail__cost">
-                 ${
-                   preview.atMax
-                     ? '<span class="muted">سطح نهایی</span>'
-                     : `${costChips(preview.cost)} <span class="muted">${icon('clock', { size: 14 })} ${faDuration(preview.seconds)}</span>`
-                 }
-               </div>
-             </div>`
-      }
-    </section>`;
+    </div>
+    ${
+      busy
+        ? `<div class="work-line">
+             <span class="work-line__label">${icon('clock', { size: 16 })} ${building.state === 'building' ? 'در حال ساخت' : 'در حال ارتقا'}</span>
+             <span class="work-line__timer" data-timer="${building.completeAt}">${faCountdown(remainingMs(building, ui.now))}</span>
+             <span class="work-line__bar"><i style="--p:${progressRatio(building, ui.now)}"></i></span>
+           </div>`
+        : ''
+    }
+  `;
+
+  const footer = busy
+    ? ''
+    : `
+      <div class="sheet__cost">${
+        preview.atMax ? '<span class="muted">در بالاترین سطح</span>' : `${costChips(preview.cost)}
+        <span class="muted">${icon('clock', { size: 14 })} ${faDuration(preview.seconds)}</span>`
+      }</div>
+      <div class="sheet__actions">
+        <button class="btn btn--ghost" data-action="move" ${building.type === 'castle' ? 'disabled' : ''}>
+          ${icon('village', { size: 16 })} جابه‌جایی
+        </button>
+        <button class="btn btn--primary" data-action="upgrade" ${preview.atMax || !affordable ? 'disabled' : ''}>
+          ${preview.atMax ? 'بالاترین سطح' : `ارتقا به سطح ${faNumber(building.level + 1)}`}
+          ${icon('star', { size: 16 })}
+        </button>
+      </div>`;
+
+  return renderSheet({
+    title: `${def.name}`,
+    subtitle: `${CATEGORY_LABEL[def.category] || ''} • سطح ${faNumber(building.level)}${busy ? ' • در حال کار' : ''}`,
+    body,
+    footer,
+    label: 'جزئیات ساختمان',
+    variant: 'detail',
+  });
 }
 
-function resourceSummary(state) {
-  const buildings = state.village.buildings;
+/* ------------------------------------------------------------- فروشگاه ساخت */
+
+function shopCard(state, def, level) {
+  const unlocked = isUnlocked(def.id, level);
+  const cost = costFor(def.id, 1);
+  const affordable = canAfford(state.resources, cost);
+  const disabled = !unlocked || !affordable;
+  const production = productionFor(def.id, 1);
+  const capacity = capacityFor(def.id, 1);
+  const detail = production
+    ? `${faNumber(production.perHour)} ${production.resource === 'gold' ? 'طلا' : 'گندم'} در ساعت`
+    : capacity
+      ? `ظرفیت ${faNumber(capacity.amount)}`
+      : `${faNumber(def.size.w)}×${faNumber(def.size.h)} زمین`;
+
   return `
-    <section class="village__summary" aria-label="خلاصه‌ی دهکده">
-      <div class="summary-chip">🏯 ارگ سطح ${faNumber(castleLevel(state.village))}</div>
-      <div class="summary-chip">🏠 ${faNumber(buildings.length)} ساختمان</div>
-      <div class="summary-chip">🌾 ${faNumber(state.resources.wheat)} گندم</div>
-    </section>`;
+    <button class="card card--build" data-build="${def.id}" ${disabled ? 'disabled' : ''}>
+      <span class="card__art">${miniBuilding(def.id, { size: 84 })}</span>
+      <span class="card__title">${def.name}</span>
+      <span class="card__note">${unlocked ? detail : `ارگ سطح ${faNumber(def.unlockAt)}`}</span>
+      <span class="card__foot">
+        ${unlocked ? costChips(cost) : `<span class="cost cost--lock">${icon('lock', { size: 13 })} قفل</span>`}
+        <span class="card__time">${icon('clock', { size: 12 })} ${faDuration(constructionSeconds(def.id, 1))}</span>
+      </span>
+    </button>`;
 }
 
-/** صفحه‌ی کامل دهکده. */
+/** محتوای فروشگاه ساخت (هم برای برگه و هم صفحه‌ی «ساختن»). */
+export function shopContent(state) {
+  const level = castleLevel(state.village);
+  const groups = Object.values(BUILDINGS).filter((def) => !def.unique);
+  const order = ['resource', 'storage', 'army', 'defense', 'economy'];
+  const sections = order
+    .map((category) => {
+      const items = groups.filter((def) => def.category === category);
+      if (!items.length) return '';
+      return `
+        <section class="shop-group">
+          <h4 class="shop-group__title">${CATEGORY_LABEL[category]}</h4>
+          <div class="cards">${items.map((def) => shopCard(state, def, level)).join('')}</div>
+        </section>`;
+    })
+    .join('');
+  return sections;
+}
+
+function buildSheet(state) {
+  const level = castleLevel(state.village);
+  return renderSheet({
+    title: 'چه بسازیم؟',
+    subtitle: `ارگ سطح ${faNumber(level)} • زمین آزاد انتخاب کن`,
+    body: `<div class="shop">${shopContent(state)}</div>`,
+    label: 'فروشگاه ساخت',
+    variant: 'shop',
+    full: true,
+  });
+}
+
+/* -------------------------------------------------------------- صفحه‌ی دهکده */
+
+/** نوار راهنما هنگام ساخت یا جابه‌جایی. */
+function placementHint(ui) {
+  if (ui.buildType) {
+    return `
+      <div class="hint-bar" role="status">
+        <span>«${BUILDINGS[ui.buildType]?.name}» را روی زمین خالی بزن</span>
+        <button class="btn btn--sm btn--ghost" data-action="cancel-mode">انصراف</button>
+      </div>`;
+  }
+  if (ui.moveUid) {
+    return `
+      <div class="hint-bar" role="status">
+        <span>ساختمان را با انتخاب زمین خالی جابه‌جا کن</span>
+        <button class="btn btn--sm btn--ghost" data-action="cancel-mode">انصراف</button>
+      </div>`;
+  }
+  if (ui.selectedUid) {
+    return '';
+  }
+  return '';
+}
+
 export function renderVillage(state, ui = {}) {
-  const hint = ui.buildType
-    ? `روی زمین خالی بزن تا ${BUILDINGS[ui.buildType].name} ساخته شود.`
-    : ui.moveUid
-      ? 'زمین خالی را برای جابه‌جایی انتخاب کن.'
-      : null;
+  const now = ui.now || Date.now();
+  const level = castleLevel(state.village);
+  const scene = renderScene(state.village, {
+    selectedUid: ui.selectedUid,
+    buildType: ui.buildType,
+    moveUid: ui.moveUid,
+    now,
+    camera: ui.camera || DEFAULT_CAMERA,
+    viewport: ui.viewport,
+  });
 
   return `
-    <div class="village">
-      <div class="village__head">
-        <div>
-          <h2>دهکده‌ی من</h2>
-          <p class="muted">روی ساختمان بزن تا ارتقا بدهی یا جابه‌جا کنی.</p>
-        </div>
-        <button class="btn btn--primary" data-action="open-build">${icon('castle', { size: 18 })} ساختن</button>
+    <div class="world">
+      <div class="stage" id="stage">${scene}</div>
+      ${placementHint(ui)}
+      <div class="quick-actions">
+        <button class="fab" data-action="open-build" aria-label="ساختن ساختمان جدید">
+          ${icon('hammer', { size: 24 })}
+          <span>ساختن</span>
+        </button>
       </div>
-
-      ${resourceSummary(state)}
-      ${hint ? `<div class="hint">${hint} <button class="btn btn--ghost btn--sm" data-action="cancel-mode">انصراف</button></div>` : ''}
-
-      <div class="board-wrap">
-        ${board(state, ui)}
-      </div>
-
-      ${detailPanel(state, ui)}
-      ${ui.buildOpen ? buildMenu(state, ui) : ''}
-    </div>`;
+      <span class="sr-only">ارگ سطح ${faNumber(level)}</span>
+      ${detailSheet(state, ui)}
+      ${ui.buildOpen ? buildSheet(state) : ''}
+    </div>
+  `;
 }
 
-/** بروزرسانی متن تایمرها و نوار پیشرفت بدون رندر دوباره. */
+/* ------------------------------------------------------ به‌روزرسانی سبک DOM */
+
 export function updateTimers(root, now) {
   let completed = 0;
   for (const el of root.querySelectorAll('[data-timer]')) {
@@ -222,31 +249,35 @@ export function updateTimers(root, now) {
     el.textContent = faCountdown(Math.max(0, remaining));
     if (remaining <= 0) completed += 1;
   }
-  for (const el of root.querySelectorAll('[data-progress]')) {
-    const completeAt = Number(el.dataset.progress);
-    const bar = el.closest('.building');
-    const startedAt = Number(bar?.dataset.startedAt);
-    const total = Number.isFinite(startedAt) ? completeAt - startedAt : 0;
+  for (const el of root.querySelectorAll('.work-line__bar i, .job__bar')) {
+    const holder = el.closest('[data-started-at], .job, .work-line');
+    const completeAt = Number(
+      el.closest('.work-line')?.querySelector('[data-timer]')?.dataset.timer ||
+        holder?.querySelector?.('[data-timer]')?.dataset.timer,
+    );
+    const startedAt = Number(holder?.dataset.startedAt);
+    if (!Number.isFinite(completeAt) || !Number.isFinite(startedAt)) continue;
+    const total = completeAt - startedAt;
     const ratio = total > 0 ? Math.max(0, Math.min(1, (now - startedAt) / total)) : 1;
     el.style.setProperty('--p', String(ratio));
-    el.setAttribute('aria-valuenow', String(Math.round(ratio * 100)));
   }
   return completed;
 }
 
-/** مقدار منابع نوار بالا را به‌روز می‌کند. */
 export function updateResourceBar(root, state) {
-  for (const chip of root.querySelectorAll('.resource')) {
-    const key = chip.dataset.resource;
-    const valueEl = chip.querySelector('.resource__value');
-    if (valueEl && state.resources[key] !== undefined) valueEl.textContent = faNumber(state.resources[key]);
-  }
-  for (const chip of root.querySelectorAll('.summary-chip')) {
-    if (chip.textContent.includes('گندم')) chip.textContent = `🌾 ${faNumber(state.resources.wheat)} گندم`;
+  const values = {
+    gold: faNumber(state.resources.gold),
+    wheat: faNumber(state.resources.wheat),
+    gems: faNumber(state.resources.gems),
+  };
+  for (const [kind, value] of Object.entries(values)) {
+    const el = root.querySelector(`.res--${kind} .res__value`);
+    if (el) el.textContent = value;
   }
 }
 
-/** خلاصه‌ی کوتاه برای اعلان. */
 export function resourcesLine(state) {
   return `${faNumber(state.resources.gold)} طلا • ${faNumber(state.resources.wheat)} گندم`;
 }
+
+export { canPlace, costChips as chips };
