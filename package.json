@@ -1,0 +1,28 @@
+{
+  "name": "castle-warriors-ir",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "جنگاوران قلعه — بازی استراتژی و ساخت‌وساز تحت وب با حال‌وهوای ایرانی",
+  "scripts": {
+    "dev": "node server.mjs",
+    "start": "node server.mjs",
+    "test": "node --test \"tests/**/*.test.js\"",
+    "wave": "node scripts/wave.mjs",
+    "wave:status": "node scripts/wave.mjs status",
+    "wave:verify": "node scripts/wave.mjs verify",
+    "wave:docs": "node scripts/wave.mjs docs"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "keywords": [
+    "game",
+    "strategy",
+    "persian",
+    "clash",
+    "browser-game",
+    "vanilla-js"
+  ],
+  "license": "MIT"
+}
