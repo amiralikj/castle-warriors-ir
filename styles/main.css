@@ -792,3 +792,243 @@ button {
     flex: 1;
   }
 }
+
+/* ==========================================================================
+   ارتش — ظرفیت، کارت سرباز و صف آموزش
+   ========================================================================== */
+
+.army {
+  display: grid;
+  gap: 12px;
+}
+
+.army__head {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: space-between;
+}
+
+.army__head h2 {
+  font-size: 1.35rem;
+}
+
+.chip {
+  align-items: center;
+  display: inline-flex;
+  gap: 5px;
+}
+
+.capacity {
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  height: 22px;
+  overflow: hidden;
+  position: relative;
+}
+
+.capacity__fill {
+  background: linear-gradient(90deg, var(--turquoise), var(--gold) calc(var(--p, 0) * 100%));
+  background-size: 100% 100%;
+  bottom: 0;
+  left: 0;
+  position: absolute;
+  right: 0;
+  top: 0;
+  width: calc(var(--p, 0) * 100%);
+  transition: width 0.3s ease;
+}
+
+.capacity__text {
+  color: var(--text);
+  font-size: 0.74rem;
+  inset: 0;
+  line-height: 22px;
+  position: absolute;
+  text-align: center;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
+}
+
+.panel--soft {
+  background: rgba(19, 31, 51, 0.7);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+}
+
+.panel--soft h3 {
+  color: var(--gold);
+  font-size: 0.95rem;
+  margin-bottom: 8px;
+}
+
+.roster {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.roster__item {
+  align-items: center;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 999px;
+  display: inline-flex;
+  font-size: 0.8rem;
+  gap: 6px;
+  padding: 3px 12px;
+}
+
+.roster__item strong {
+  color: var(--gold);
+}
+
+.troops {
+  display: grid;
+  gap: 10px;
+}
+
+.troop {
+  background: linear-gradient(170deg, var(--panel), var(--bg-soft));
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  display: grid;
+  gap: 10px;
+  padding: 12px 14px;
+}
+
+.troop.is-locked {
+  opacity: 0.6;
+}
+
+.troop__head {
+  align-items: flex-start;
+  display: flex;
+  gap: 10px;
+}
+
+.troop__emoji {
+  font-size: 26px;
+  line-height: 1.2;
+}
+
+.troop__title {
+  flex: 1;
+}
+
+.troop__title h3 {
+  font-size: 1rem;
+}
+
+.troop__count {
+  background: var(--gold-soft);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--gold);
+  font-size: 0.82rem;
+  font-variant-numeric: tabular-nums;
+  padding: 0 10px;
+}
+
+.troop__stats {
+  color: var(--muted);
+  display: flex;
+  flex-wrap: wrap;
+  font-size: 0.76rem;
+  gap: 12px;
+}
+
+.troop__stats span {
+  align-items: center;
+  display: inline-flex;
+  gap: 4px;
+}
+
+.troop__foot {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.troop__time {
+  align-items: center;
+  color: var(--muted);
+  display: inline-flex;
+  font-size: 0.76rem;
+  gap: 4px;
+}
+
+.troop__actions {
+  display: flex;
+  gap: 6px;
+  margin-inline-start: auto;
+}
+
+.troop__reason {
+  color: var(--danger);
+  font-size: 0.74rem;
+}
+
+.jobs {
+  display: grid;
+  gap: 8px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.job {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  padding: 8px 10px 10px;
+  position: relative;
+}
+
+.job__row {
+  align-items: center;
+  display: flex;
+  font-size: 0.84rem;
+  gap: 8px;
+  justify-content: space-between;
+}
+
+.job__name {
+  align-items: center;
+  display: inline-flex;
+  gap: 6px;
+}
+
+.job__timer {
+  color: var(--gold);
+  font-variant-numeric: tabular-nums;
+}
+
+.job__bar {
+  background: linear-gradient(90deg, var(--turquoise) calc(var(--p, 0) * 100%), rgba(0, 0, 0, 0.35) 0);
+  border-radius: 999px;
+  display: block;
+  height: 4px;
+  margin-top: 8px;
+}
+
+.empty-state {
+  align-content: center;
+  display: grid;
+  gap: 10px;
+  justify-items: center;
+  min-height: 50vh;
+  text-align: center;
+}
+
+.empty-state__emoji {
+  font-size: 48px;
+}
+
+.empty-state .btn {
+  margin-top: 6px;
+}

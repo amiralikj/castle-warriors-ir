@@ -5,12 +5,14 @@
 import { renderShell, SCREEN_IDS, SCREENS } from './ui/shell.js';
 import { renderPlaceholder } from './ui/screens/placeholder.js';
 import { renderVillage, updateTimers, updateResourceBar } from './ui/screens/village.js';
+import { renderArmy, updateTrainingProgress } from './ui/screens/army.js';
 import { createRouter, routeHref } from './ui/router.js';
 import { createStore } from './ui/store.js';
 import { browserStorage } from './core/persistence.js';
-import { buildBuilding, upgradeBuilding } from './core/actions.js';
+import { buildBuilding, upgradeBuilding, trainUnits } from './core/actions.js';
 import { moveBuilding, findByUid } from './core/village.js';
 import { BUILDINGS } from './data/buildings.js';
+import { TROOPS } from './data/troops.js';
 import { faDuration, faNumber } from './utils/format.js';
 
 const app = document.querySelector('#app');
@@ -37,8 +39,9 @@ function paintScreen() {
   const state = store.getState();
   const screen = app.querySelector('#screen');
   if (!screen) return;
-  screen.innerHTML =
-    routeName === 'village' ? renderVillage(state, ui) : renderPlaceholder(routeName);
+  if (routeName === 'village') screen.innerHTML = renderVillage(state, ui);
+  else if (routeName === 'army') screen.innerHTML = renderArmy(state, ui);
+  else screen.innerHTML = renderPlaceholder(routeName);
   updateResourceBar(app, state);
   syncNav();
 }
@@ -113,10 +116,26 @@ function upgrade(uid) {
   toast(`ارتقا شروع شد؛ ${faDuration(result.seconds)} طول می‌کشد.`, 'success');
 }
 
+function train(type, count) {
+  const result = trainUnits(store.getState(), { type, count: Number(count) || 1, now: Date.now() });
+  if (!result.ok) {
+    toast(result.message || 'آموزش ممکن نشد.', 'error');
+    return;
+  }
+  store.setState(result.state);
+  paintScreen();
+  toast(`آموزش ${faNumber(result.job.count)} ${TROOPS[type].name} شروع شد.`, 'success');
+}
+
 function handleClick(event) {
-  const target = event.target.closest('[data-action],[data-build],[data-uid],[data-cell]');
+  const target = event.target.closest('[data-action],[data-build],[data-uid],[data-cell],[data-train]');
   if (!target) return;
   const state = store.getState();
+
+  if (target.dataset.train) {
+    train(target.dataset.train, target.dataset.count);
+    return;
+  }
 
   if (target.dataset.action) {
     switch (target.dataset.action) {
@@ -190,9 +209,17 @@ function tickLoop() {
   const state = store.getState();
   updateResourceBar(app, state);
   const completed = updateTimers(app, now);
+  updateTrainingProgress(app, now);
   if (completed > 0 || report.completed > 0) {
     paintScreen();
     toast('ساخت‌وساز تمام شد. ✅', 'success');
+  }
+  if (report.trained?.length) {
+    paintScreen();
+    const names = report.trained
+      .map((job) => `${faNumber(job.count)} ${TROOPS[job.type]?.name || job.type}`)
+      .join(' و ');
+    toast(`آموزش تمام شد: ${names} به سپاه پیوست.`, 'success');
   }
 }
 
