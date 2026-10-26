@@ -4,6 +4,8 @@
  * یک «انبار» (storage) قابل تزریق می‌گیرند تا تست بدون مرورگر ممکن باشد.
  */
 import { createResources, productionRates, storageCaps, accrue } from './economy.js';
+import { createArmy, tickArmy } from './army.js';
+import { TROOPS } from '../data/troops.js';
 import { createVillage, tick, castleLevel } from './village.js';
 import { BUILDINGS } from '../data/buildings.js';
 
@@ -44,6 +46,7 @@ export function createGameState(now = Date.now()) {
     lastSeen: now,
     resources: createResources(),
     village: createVillage(),
+    army: createArmy(),
     stats: {
       battlesWon: 0,
       battlesLost: 0,
@@ -137,6 +140,37 @@ export function sanitizeVillage(raw) {
   return { size, nextUid, buildings };
 }
 
+/** ارتش را پاک‌سازی می‌کند: فقط سربازان شناخته‌شده و اعداد مثبت می‌مانند. */
+export function sanitizeArmy(raw) {
+  const army = createArmy();
+  if (!isObject(raw)) return army;
+
+  for (const [type, count] of Object.entries(isObject(raw.units) ? raw.units : {})) {
+    if (!TROOPS[type]) continue;
+    const n = Math.floor(finite(count, 0));
+    if (n > 0) army.units[type] = n;
+  }
+
+  const queue = Array.isArray(raw.queue) ? raw.queue : [];
+  for (const job of queue) {
+    if (!isObject(job) || !TROOPS[job.type]) continue;
+    const count = Math.floor(finite(job.count, 0));
+    const startedAt = Math.round(finite(job.startedAt, 0));
+    const completeAt = Math.round(finite(job.completeAt, 0));
+    if (count <= 0 || completeAt <= startedAt) continue;
+    army.queue.push({
+      id: typeof job.id === 'string' ? job.id : `job-${army.queue.length}`,
+      type: job.type,
+      count,
+      startedAt,
+      completeAt,
+      seconds: Math.max(1, Math.round((completeAt - startedAt) / 1000)),
+    });
+    if (army.queue.length >= 6) break;
+  }
+  return army;
+}
+
 /** وضعیت خام را به نسخه‌ی فعلی مهاجرت و پاک‌سازی می‌کند. */
 export function migrate(raw) {
   if (!isObject(raw)) return null;
@@ -159,6 +193,7 @@ export function migrate(raw) {
       gems: Math.max(0, Math.floor(finite(resources.gems, base.resources.gems))),
     },
     village,
+    army: sanitizeArmy(raw.army),
     stats: {
       ...base.stats,
       ...Object.fromEntries(
@@ -218,6 +253,8 @@ export function advanceGame(state, now = Date.now()) {
   const elapsed = Math.min(elapsedRaw, MAX_OFFLINE_SECONDS);
 
   const village = tick(state.village, safeNow);
+  const trained = tickArmy(state.army || createArmy(), safeNow);
+  const army = trained.army;
   const rates = productionRates(village.buildings);
   const caps = storageCaps(village.buildings);
   const before = state.resources;
@@ -231,16 +268,18 @@ export function advanceGame(state, now = Date.now()) {
     completed: village.buildings.filter(
       (b) => b.state === 'idle' && state.village.buildings.some((o) => o.uid === b.uid && o.state !== 'idle'),
     ).length,
+    trained: trained.completed,
   };
 
   const stats = {
     ...state.stats,
     totalGoldEarned: (state.stats?.totalGoldEarned || 0) + report.gold,
     totalWheatEarned: (state.stats?.totalWheatEarned || 0) + report.wheat,
+    totalTrained: (state.stats?.totalTrained || 0) + report.trained.reduce((sum, job) => sum + job.count, 0),
   };
 
   return {
-    state: { ...state, village, resources, stats, lastSeen: safeNow },
+    state: { ...state, village, army, resources, stats, lastSeen: safeNow },
     report,
   };
 }

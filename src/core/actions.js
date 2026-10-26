@@ -5,6 +5,8 @@
 import { costFor, getBuilding, constructionSeconds, isUnlocked } from '../data/buildings.js';
 import { canAfford, pay } from './economy.js';
 import { addBuilding, canPlace, findByUid, castleLevel, startUpgrade } from './village.js';
+import { createArmy, enqueueTraining } from './army.js';
+import { troopCost, trainingSeconds } from '../data/troops.js';
 
 /** پیام خطای یکدست برای کمبود منابع. */
 function noResources(cost) {
@@ -84,5 +86,39 @@ export function upgradePreview(village, uid) {
     cost: atMax ? null : costFor(building.type, building.level + 1),
     seconds: atMax ? 0 : constructionSeconds(building.type, building.level + 1),
     busy: building.state !== 'idle',
+  };
+}
+
+/** سطح سربازخانه‌ی آماده (۰ اگر ساخته نشده باشد). */
+export function barracksLevel(village) {
+  const barracks = village.buildings.find((b) => b.type === 'barracks' && b.state === 'idle');
+  return barracks ? barracks.level : 0;
+}
+
+/**
+ * آموزش سرباز: بررسی سربازخانه، ظرفیت و صف، سپس کسر گندم.
+ */
+export function trainUnits(state, { type, count = 1, now = Date.now() }) {
+  const level = barracksLevel(state.village);
+  if (level === 0) {
+    return { ok: false, code: 'NO_BARRACKS', message: 'اول سربازخانه بساز تا سپاه آموزش ببیند.' };
+  }
+  const army = state.army || createArmy();
+  const queued = enqueueTraining(army, { type, count, now, barracksLevel: level });
+  if (!queued.ok) return queued;
+
+  const cost = troopCost(type, count);
+  if (!canAfford(state.resources, cost)) return noResources(cost);
+
+  return {
+    ok: true,
+    cost,
+    job: queued.job,
+    seconds: queued.seconds ?? trainingSeconds(type, count, level),
+    state: {
+      ...state,
+      army: queued.army,
+      resources: pay(state.resources, cost),
+    },
   };
 }
